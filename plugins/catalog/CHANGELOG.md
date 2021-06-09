@@ -1,5 +1,19 @@
 # @backstage/plugin-catalog
 
+## 0.6.2
+
+### Patch Changes
+
+- db1c8f93b: A `<CatalogResultListItem />` component is now available for use in custom Search Experiences.
+- 4fbb00707: A new card that shows components that depend on the active component
+- d5ad47bbb: Exported AboutCard contents and utility functions
+- Updated dependencies [27a9b503a]
+- Updated dependencies [70bc30c5b]
+- Updated dependencies [eda9dbd5f]
+  - @backstage/catalog-model@0.8.2
+  - @backstage/catalog-client@0.3.13
+  - @backstage/integration@0.5.6
+
 ## 0.6.1
 
 ### Patch Changes

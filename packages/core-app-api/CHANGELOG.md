@@ -1,5 +1,13 @@
 # @backstage/core-app-api
 
+## 0.1.2
+
+### Patch Changes
+
+- da8cba44f: Deprecate and disable the extension creation methods, which were added to this package by mistake and should only exist within `@backstage/core-plugin-api`.
+- Updated dependencies [da8cba44f]
+  - @backstage/core-plugin-api@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes

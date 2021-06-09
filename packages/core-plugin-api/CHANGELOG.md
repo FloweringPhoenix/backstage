@@ -1,5 +1,11 @@
 # @backstage/core-plugin-api
 
+## 0.1.2
+
+### Patch Changes
+
+- da8cba44f: Apply fixes to the extension creation API that were mistakenly applied to `@backstage/core-app-api` instead.
+
 ## 0.1.1
 
 ### Patch Changes

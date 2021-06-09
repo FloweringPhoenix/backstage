@@ -1,5 +1,15 @@
 # @backstage/plugin-github-actions
 
+## 0.4.9
+
+### Patch Changes
+
+- 9bdd2cca8: Add missing token on job list call to GitHub API
+- Updated dependencies [27a9b503a]
+- Updated dependencies [eda9dbd5f]
+  - @backstage/catalog-model@0.8.2
+  - @backstage/integration@0.5.6
+
 ## 0.4.8
 
 ### Patch Changes

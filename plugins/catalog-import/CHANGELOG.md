@@ -1,5 +1,17 @@
 # @backstage/plugin-catalog-import
 
+## 0.5.9
+
+### Patch Changes
+
+- 70bc30c5b: Display preview result final step.
+- Updated dependencies [27a9b503a]
+- Updated dependencies [70bc30c5b]
+- Updated dependencies [eda9dbd5f]
+  - @backstage/catalog-model@0.8.2
+  - @backstage/catalog-client@0.3.13
+  - @backstage/integration@0.5.6
+
 ## 0.5.8
 
 ### Patch Changes
