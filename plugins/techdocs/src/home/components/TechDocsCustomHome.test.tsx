@@ -14,39 +14,37 @@
  * limitations under the License.
  */
 
-import { CatalogApi, catalogApiRef } from '@backstage/plugin-catalog-react';
-import { renderInTestApp } from '@backstage/test-utils';
+import {
+  catalogApiRef,
+  starredEntitiesApiRef,
+  MockStarredEntitiesApi,
+} from '@backstage/plugin-catalog-react';
+import { catalogApiMock } from '@backstage/plugin-catalog-react/testUtils';
+import { renderInTestApp, TestApiRegistry } from '@backstage/test-utils';
 import { screen } from '@testing-library/react';
 import React from 'react';
 import { TechDocsCustomHome, PanelType } from './TechDocsCustomHome';
-import { ApiProvider, ApiRegistry } from '@backstage/core-app-api';
+import { ApiProvider } from '@backstage/core-app-api';
+import { rootDocsRouteRef } from '../../routes';
 
-jest.mock('@backstage/plugin-catalog-react', () => {
-  const actual = jest.requireActual('@backstage/plugin-catalog-react');
-  return {
-    ...actual,
-    useOwnUser: () => 'test-user',
-  };
+const mockCatalogApi = catalogApiMock({
+  entities: [
+    {
+      apiVersion: 'version',
+      kind: 'User',
+      metadata: {
+        name: 'owned',
+        namespace: 'default',
+      },
+    },
+  ],
 });
 
-const mockCatalogApi = {
-  getEntityByName: jest.fn(),
-  getEntities: async () => ({
-    items: [
-      {
-        apiVersion: 'version',
-        kind: 'User',
-        metadata: {
-          name: 'owned',
-          namespace: 'default',
-        },
-      },
-    ],
-  }),
-} as Partial<CatalogApi>;
-
 describe('TechDocsCustomHome', () => {
-  const apiRegistry = ApiRegistry.with(catalogApiRef, mockCatalogApi);
+  const apiRegistry = TestApiRegistry.from(
+    [catalogApiRef, mockCatalogApi],
+    [starredEntitiesApiRef, new MockStarredEntitiesApi()],
+  );
 
   it('should render a TechDocs home page', async () => {
     const tabsConfig = [
@@ -78,6 +76,11 @@ describe('TechDocsCustomHome', () => {
       <ApiProvider apis={apiRegistry}>
         <TechDocsCustomHome tabsConfig={tabsConfig} />
       </ApiProvider>,
+      {
+        mountedRoutes: {
+          '/docs/:namespace/:kind/:name/*': rootDocsRouteRef,
+        },
+      },
     );
 
     // Header
