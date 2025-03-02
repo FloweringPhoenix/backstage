@@ -14,230 +14,257 @@
  * limitations under the License.
  */
 
-import { CommanderStatic } from 'commander';
-import { exitWithError } from '../lib/errors';
+import { Command } from 'commander';
+import { lazy } from '../lib/lazy';
+import {
+  configOption,
+  registerCommands as registerConfigCommands,
+} from '../modules/config';
+import {
+  registerPackageCommands as registerPackageBuildCommands,
+  registerRepoCommands as registerRepoBuildCommands,
+  registerCommands as registerBuildCommands,
+} from '../modules/build';
+import { registerCommands as registerMigrateCommand } from '../modules/migrate';
 
-export function registerCommands(program: CommanderStatic) {
-  const configOption = [
-    '--config <path>',
-    'Config files to load instead of app-config.yaml',
-    (opt: string, opts: string[]) => [...opts, opt],
-    Array<string>(),
-  ] as const;
+export function registerRepoCommand(program: Command) {
+  const command = program
+    .command('repo [command]')
+    .description('Command that run across an entire Backstage project');
 
-  program
-    .command('app:build')
-    .description('Build an app for a production release')
-    .option('--stats', 'Write bundle stats to output directory')
-    .option('--lax', 'Do not require environment variables to be set')
-    .option(...configOption)
-    .action(lazy(() => import('./app/build').then(m => m.default)));
+  registerRepoBuildCommands(command);
 
-  program
-    .command('app:serve')
-    .description('Serve an app for local development')
-    .option('--check', 'Enable type checking and linting')
-    .option(...configOption)
-    .action(lazy(() => import('./app/serve').then(m => m.default)));
-
-  program
-    .command('backend:build')
-    .description('Build a backend plugin')
-    .action(lazy(() => import('./backend/build').then(m => m.default)));
-
-  program
-    .command('backend:bundle')
-    .description('Bundle the backend into a deployment archive')
-    .option(
-      '--build-dependencies',
-      'Build all local package dependencies before bundling the backend',
-    )
-    .action(lazy(() => import('./backend/bundle').then(m => m.default)));
-
-  program
-    .command('backend:build-image')
-    .allowUnknownOption(true)
-    .helpOption(', --backstage-cli-help') // Let docker handle --help
-    .option('--build', 'Build packages before packing them into the image')
-    .description(
-      'Bundles the package into a docker image. This command is deprecated and will be removed.',
-    )
-    .action(lazy(() => import('./backend/buildImage').then(m => m.default)));
-
-  program
-    .command('backend:dev')
-    .description('Start local development server with HMR for the backend')
-    .option('--check', 'Enable type checking and linting')
-    .option('--inspect', 'Enable debugger')
-    // We don't actually use the config in the CLI, just pass them on to the NodeJS process
-    .option(...configOption)
-    .action(lazy(() => import('./backend/dev').then(m => m.default)));
-
-  program
-    .command('create-plugin')
-    .option(
-      '--backend',
-      'Create plugin with the backend dependencies as default',
-    )
-    .description('Creates a new plugin in the current repository')
-    .option('--scope <scope>', 'npm scope')
-    .option('--npm-registry <URL>', 'npm registry URL')
-    .option('--no-private', 'Public npm package')
-    .action(
-      lazy(() => import('./create-plugin/createPlugin').then(m => m.default)),
-    );
-
-  program
-    .command('remove-plugin')
-    .description('Removes plugin in the current repository')
-    .action(
-      lazy(() => import('./remove-plugin/removePlugin').then(m => m.default)),
-    );
-
-  program
-    .command('plugin:build')
-    .description('Build a plugin')
-    .action(lazy(() => import('./plugin/build').then(m => m.default)));
-
-  program
-    .command('plugin:serve')
-    .description('Serves the dev/ folder of a plugin')
-    .option('--check', 'Enable type checking and linting')
-    .option(...configOption)
-    .action(lazy(() => import('./plugin/serve').then(m => m.default)));
-
-  program
-    .command('plugin:diff')
-    .option('--check', 'Fail if changes are required')
-    .option('--yes', 'Apply all changes')
-    .description('Diff an existing plugin with the creation template')
-    .action(lazy(() => import('./plugin/diff').then(m => m.default)));
-
-  program
-    .command('build')
-    .description('Build a package for publishing')
-    .option('--outputs <formats>', 'List of formats to output [types,cjs,esm]')
-    .action(lazy(() => import('./build').then(m => m.default)));
-
-  program
+  command
     .command('lint')
+    .description('Lint all packages in the project')
     .option(
       '--format <format>',
       'Lint report output format',
       'eslint-formatter-friendly',
     )
+    .option(
+      '--output-file <path>',
+      'Write the lint report to a file instead of stdout',
+    )
+    .option(
+      '--since <ref>',
+      'Only lint packages that changed since the specified ref',
+    )
+    .option(
+      '--successCache',
+      'Enable success caching, which skips running tests for unchanged packages that were successful in the previous run',
+    )
+    .option(
+      '--successCacheDir <path>',
+      'Set the success cache location, (default: node_modules/.cache/backstage-cli)',
+    )
     .option('--fix', 'Attempt to automatically fix violations')
-    .description('Lint a package')
-    .action(lazy(() => import('./lint').then(m => m.default)));
+    .action(lazy(() => import('./repo/lint'), 'command'));
 
-  program
+  command
+    .command('fix')
+    .description('Automatically fix packages in the project')
+    .option(
+      '--publish',
+      'Enable additional fixes that only apply when publishing packages',
+    )
+    .option(
+      '--check',
+      'Fail if any packages would have been changed by the command',
+    )
+    .action(lazy(() => import('./repo/fix'), 'command'));
+
+  command
+    .command('clean')
+    .description('Delete cache and output directories')
+    .action(lazy(() => import('./repo/clean'), 'command'));
+
+  command
+    .command('list-deprecations')
+    .description('List deprecations')
+    .option('--json', 'Output as JSON')
+    .action(lazy(() => import('./repo/list-deprecations'), 'command'));
+
+  command
+    .command('test')
+    .allowUnknownOption(true) // Allows the command to run, but we still need to parse raw args
+    .option(
+      '--since <ref>',
+      'Only test packages that changed since the specified ref',
+    )
+    .option(
+      '--successCache',
+      'Enable success caching, which skips running tests for unchanged packages that were successful in the previous run',
+    )
+    .option(
+      '--successCacheDir <path>',
+      'Set the success cache location, (default: node_modules/.cache/backstage-cli)',
+    )
+    .option(
+      '--jest-help',
+      'Show help for Jest CLI options, which are passed through',
+    )
+    .description('Run tests, forwarding args to Jest, defaulting to watch mode')
+    .action(lazy(() => import('./repo/test'), 'command'));
+}
+
+export function registerScriptCommand(program: Command) {
+  const command = program
+    .command('package [command]')
+    .description('Lifecycle scripts for individual packages');
+
+  command
+    .command('start')
+    .description('Start a package for local development')
+    .option(...configOption)
+    .option('--role <name>', 'Run the command with an explicit package role')
+    .option('--check', 'Enable type checking and linting if available')
+    .option('--inspect [host]', 'Enable debugger in Node.js environments')
+    .option(
+      '--inspect-brk [host]',
+      'Enable debugger in Node.js environments, breaking before code starts',
+    )
+    .option('--require <path>', 'Add a --require argument to the node process')
+    .option('--link <path>', 'Link an external workspace for module resolution')
+    .action(lazy(() => import('./start'), 'command'));
+
+  registerPackageBuildCommands(command);
+
+  command
+    .command('lint [directories...]')
+    .option(
+      '--format <format>',
+      'Lint report output format',
+      'eslint-formatter-friendly',
+    )
+    .option(
+      '--output-file <path>',
+      'Write the lint report to a file instead of stdout',
+    )
+    .option('--fix', 'Attempt to automatically fix violations')
+    .option(
+      '--max-warnings <number>',
+      'Fail if more than this number of warnings. -1 allows warnings. (default: 0)',
+    )
+    .description('Lint a package')
+    .action(lazy(() => import('./lint'), 'default'));
+
+  command
     .command('test')
     .allowUnknownOption(true) // Allows the command to run, but we still need to parse raw args
     .helpOption(', --backstage-cli-help') // Let Jest handle help
     .description('Run tests, forwarding args to Jest, defaulting to watch mode')
-    .action(lazy(() => import('./testCommand').then(m => m.default)));
+    .action(lazy(() => import('./test'), 'default'));
 
-  program
-    .command('config:docs')
-    .option(
-      '--package <name>',
-      'Only include the schema that applies to the given package',
-    )
-    .description('Browse the configuration reference documentation')
-    .action(lazy(() => import('./config/docs').then(m => m.default)));
-
-  program
-    .command('config:print')
-    .option(
-      '--package <name>',
-      'Only load config schema that applies to the given package',
-    )
-    .option('--lax', 'Do not require environment variables to be set')
-    .option('--frontend', 'Print only the frontend configuration')
-    .option('--with-secrets', 'Include secrets in the printed configuration')
-    .option(
-      '--format <format>',
-      'Format to print the configuration in, either json or yaml [yaml]',
-    )
-    .option(...configOption)
-    .description('Print the app configuration for the current package')
-    .action(lazy(() => import('./config/print').then(m => m.default)));
-
-  program
-    .command('config:check')
-    .option(
-      '--package <name>',
-      'Only load config schema that applies to the given package',
-    )
-    .option('--lax', 'Do not require environment variables to be set')
-    .option(...configOption)
-    .description(
-      'Validate that the given configuration loads and matches schema',
-    )
-    .action(lazy(() => import('./config/validate').then(m => m.default)));
-
-  program
-    .command('config:schema')
-    .option(
-      '--package <name>',
-      'Only output config schema that applies to the given package',
-    )
-    .option(
-      '--format <format>',
-      'Format to print the schema in, either json or yaml [yaml]',
-    )
-    .description('Print configuration schema')
-    .action(lazy(() => import('./config/schema').then(m => m.default)));
-
-  program
-    .command('versions:bump')
-    .description('Bump Backstage packages to the latest versions')
-    .action(lazy(() => import('./versions/bump').then(m => m.default)));
-
-  program
-    .command('versions:check')
-    .option('--fix', 'Fix any auto-fixable versioning problems')
-    .description('Check Backstage package versioning')
-    .action(lazy(() => import('./versions/lint').then(m => m.default)));
-
-  program
-    .command('prepack')
-    .description('Prepares a package for packaging before publishing')
-    .action(lazy(() => import('./pack').then(m => m.pre)));
-
-  program
-    .command('postpack')
-    .description('Restores the changes made by the prepack command')
-    .action(lazy(() => import('./pack').then(m => m.post)));
-
-  program
+  command
     .command('clean')
     .description('Delete cache directories')
-    .action(lazy(() => import('./clean/clean').then(m => m.default)));
+    .action(lazy(() => import('./clean/clean'), 'default'));
 
+  command
+    .command('prepack')
+    .description('Prepares a package for packaging before publishing')
+    .action(lazy(() => import('./pack'), 'pre'));
+
+  command
+    .command('postpack')
+    .description('Restores the changes made by the prepack command')
+    .action(lazy(() => import('./pack'), 'post'));
+}
+
+export function registerCommands(program: Command) {
   program
-    .command('build-workspace <workspace-dir> ...<packages>')
-    .description('Builds a temporary dist workspace from the provided packages')
-    .action(lazy(() => import('./buildWorkspace').then(m => m.default)));
+    .command('new')
+    .storeOptionsAsProperties(false)
+    .description(
+      'Open up an interactive guide to creating new things in your app',
+    )
+    .option(
+      '--select <name>',
+      'Select the thing you want to be creating upfront',
+    )
+    .option(
+      '--option <name>=<value>',
+      'Pre-fill options for the creation process',
+      (opt, arr: string[]) => [...arr, opt],
+      [],
+    )
+    .option(
+      '--skip-install',
+      `Skips running 'yarn install' and 'yarn lint --fix'`,
+    )
+    .option('--scope <scope>', 'The scope to use for new packages')
+    .option(
+      '--npm-registry <URL>',
+      'The package registry to use for new packages',
+    )
+    .option(
+      '--baseVersion <version>',
+      'The version to use for any new packages (default: 0.1.0)',
+    )
+    .option(
+      '--license <license>',
+      'The license to use for any new packages (default: Apache-2.0)',
+    )
+    .option('--no-private', 'Do not mark new packages as private')
+    .action(lazy(() => import('./new/new'), 'default'));
+
+  registerConfigCommands(program);
+  registerRepoCommand(program);
+  registerScriptCommand(program);
+  registerMigrateCommand(program);
+  registerBuildCommands(program);
 
   program
     .command('create-github-app <github-org>')
     .description('Create new GitHub App in your organization.')
-    .action(lazy(() => import('./create-github-app').then(m => m.default)));
+    .action(lazy(() => import('./create-github-app'), 'default'));
+
+  program
+    .command('info')
+    .description('Show helpful information for debugging and reporting bugs')
+    .action(lazy(() => import('./info'), 'default'));
+
+  // Notifications for removed commands
+  program
+    .command('create')
+    .allowUnknownOption(true)
+    .action(removed("use 'backstage-cli new' instead"));
+  program
+    .command('create-plugin')
+    .allowUnknownOption(true)
+    .action(removed("use 'backstage-cli new' instead"));
+  program
+    .command('plugin:diff')
+    .allowUnknownOption(true)
+    .action(removed("use 'backstage-cli fix' instead"));
+  program
+    .command('test')
+    .allowUnknownOption(true)
+    .action(
+      removed(
+        "use 'backstage-cli repo test' or 'backstage-cli package test' instead",
+      ),
+    );
+  program
+    .command('clean')
+    .allowUnknownOption(true)
+    .action(removed("use 'backstage-cli package clean' instead"));
+  program
+    .command('versions:check')
+    .allowUnknownOption(true)
+    .action(removed("use 'yarn dedupe' or 'yarn-deduplicate' instead"));
+  program.command('install').allowUnknownOption(true).action(removed());
+  program.command('onboard').allowUnknownOption(true).action(removed());
 }
 
-// Wraps an action function so that it always exits and handles errors
-function lazy(
-  getActionFunc: () => Promise<(...args: any[]) => Promise<void>>,
-): (...args: any[]) => Promise<never> {
-  return async (...args: any[]) => {
-    try {
-      const actionFunc = await getActionFunc();
-      await actionFunc(...args);
-
-      process.exit(0);
-    } catch (error) {
-      exitWithError(error);
-    }
+function removed(message?: string) {
+  return () => {
+    console.error(
+      message
+        ? `This command has been removed, ${message}`
+        : 'This command has been removed',
+    );
+    process.exit(1);
   };
 }
